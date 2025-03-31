@@ -1,0 +1,309 @@
+label kernel_entry_point
+
+DEBUG_OFF
+
+write "Operation register:" to INFO_REG_OP
+write "A register:" to INFO_REG_A
+write "B register:" to INFO_REG_B
+write "C register:" to INFO_REG_C
+write "D register:" to INFO_REG_D
+write "Result register:" to INFO_REG_RES
+write "Comparison result register:" to INFO_REG_BOOL_RES
+write "Error register:" to INFO_REG_ERROR
+write "Display buffer:" to INFO_DISPLAY_BUFFER
+write "Display color:" to INFO_DISPLAY_COLOR
+write "Keyboard buffer:" to INFO_KEYBOARD_BUFFER
+write "Display background:" to INFO_DISPLAY_BACKGROUND
+write "Program counter:" to INFO_PROGRAM_COUNTER
+write "Free memory start:" to INFO_FREE_MEMORY_START
+write "Free memory end:" to INFO_FREE_MEMORY_END
+write "Free chunks:" to INFO_FREE_CHUNKS
+write "" to FREE_CHUNKS
+
+// Let's init pointer to the stack
+//      var:sys_stack_ptr = FREE_MEMORY_END + 1
+// Therefore on any push to stack we will decrement it
+// If sys_stack_pop will be called incorrectly then we will get crashed
+copy FREE_MEMORY_END to REG_A
+write OP_INCR to REG_OP
+cpu_exec
+copy REG_RES to var:sys_stack_ptr
+
+// init file system
+copy PROGRAM_COUNTER to var:sys_return
+jump label:sys_fs_init
+
+
+// Print welcome message
+write "RAMFS init - done." to DISPLAY_BUFFER
+write COLOR_GREEN to DISPLAY_COLOR
+write OP_DISPLAY_LN to REG_OP
+cpu_exec
+
+// ##########################################
+// # INITRAMFS_END                          #
+// ##########################################
+
+// ------------------------------------------
+// ------------------------------------------
+
+var file1
+var file2
+var file1_desc
+var file2_desc
+var counter
+var line1
+var line2
+var file1_size
+var file2_size
+
+// Read the first filename
+write "Enter first filename: " to DISPLAY_BUFFER
+write COLOR_CYAN to DISPLAY_COLOR
+write OP_DISPLAY to REG_OP
+cpu_exec
+write KEYBOARD_READ_LINE to REG_A
+write OP_READ_INPUT to REG_OP
+cpu_exec
+copy KEYBOARD_BUFFER to var:file1
+
+write "Parsed file: " to DISPLAY_BUFFER
+write OP_DISPLAY to REG_OP
+cpu_exec
+copy var:file1 to DISPLAY_BUFFER
+write OP_DISPLAY_LN to REG_OP
+cpu_exec
+
+// Read the second filename
+write "Enter second filename: " to DISPLAY_BUFFER
+write OP_DISPLAY to REG_OP
+cpu_exec
+write KEYBOARD_READ_LINE to REG_A
+write OP_READ_INPUT to REG_OP
+cpu_exec
+copy KEYBOARD_BUFFER to var:file2
+
+write "Parsed file: " to DISPLAY_BUFFER
+write OP_DISPLAY to REG_OP
+cpu_exec
+copy var:file2 to DISPLAY_BUFFER
+write OP_DISPLAY_LN to REG_OP
+cpu_exec
+
+// Check if first file exists
+copy var:file1 to REG_A
+copy PROGRAM_COUNTER to var:sys_return
+jump label:sys_fs_open
+jump_err label:file_not_found_1
+copy REG_RES to var:file1_desc
+
+// Check if second file exists
+copy var:file2 to REG_A
+copy PROGRAM_COUNTER to var:sys_return
+jump label:sys_fs_open
+jump_err label:file_not_found_2
+copy REG_RES to var:file2_desc
+
+// Get size of the first file
+copy var:file1_desc to REG_A
+copy PROGRAM_COUNTER to var:sys_return
+jump label:sys_fs_descriptor_info
+
+copy REG_RES to REG_A
+write 4 to REG_B
+write " " to REG_C
+write OP_GET_COLUMN to REG_OP
+cpu_exec
+copy REG_RES to var:file1_size
+
+write "1 file size: " to DISPLAY_BUFFER
+write COLOR_YELLOW to DISPLAY_COLOR
+write OP_DISPLAY to REG_OP
+cpu_exec
+copy var:file1_size to DISPLAY_BUFFER
+write COLOR_GREEN to DISPLAY_COLOR
+write OP_DISPLAY_LN to REG_OP
+cpu_exec
+
+// Get size of the second file
+copy var:file2_desc to REG_A
+copy PROGRAM_COUNTER to var:sys_return
+jump label:sys_fs_descriptor_info
+
+copy REG_RES to REG_A
+write 4 to REG_B
+write " " to REG_C
+write OP_GET_COLUMN to REG_OP
+cpu_exec
+copy REG_RES to var:file2_size
+
+write "2 file size: " to DISPLAY_BUFFER
+write COLOR_YELLOW to DISPLAY_COLOR
+write OP_DISPLAY to REG_OP
+cpu_exec
+copy var:file2_size to DISPLAY_BUFFER
+write COLOR_GREEN to DISPLAY_COLOR
+write OP_DISPLAY_LN to REG_OP
+cpu_exec
+
+write 1 to var:counter
+
+label compare_loop
+
+    copy var:file1_desc to REG_A
+    copy var:counter to REG_B
+    copy PROGRAM_COUNTER to var:sys_return
+    jump label:sys_fs_read
+    jump_err label:end_of_file_1
+    copy REG_RES to var:line1
+
+    copy var:file2_desc to REG_A
+    copy var:counter to REG_B
+    copy PROGRAM_COUNTER to var:sys_return
+    jump label:sys_fs_read
+    jump_err label:end_of_file_2
+    copy REG_RES to var:line2
+
+    // write "line from the first file: " to DISPLAY_BUFFER
+    // write COLOR_GREEN to DISPLAY_COLOR
+    // write OP_DISPLAY to REG_OP
+    // cpu_exec
+    // copy var:line1 to DISPLAY_BUFFER
+    // write OP_DISPLAY_LN to REG_OP
+    // cpu_exec
+
+    // write "line from the second file: " to DISPLAY_BUFFER
+    // write COLOR_GREEN to DISPLAY_COLOR
+    // write OP_DISPLAY to REG_OP
+    // cpu_exec
+    // copy var:line2 to DISPLAY_BUFFER
+    // write OP_DISPLAY_LN to REG_OP
+    // cpu_exec
+
+    copy var:line1 to REG_A
+    copy var:line2 to REG_B
+    write OP_CMP_EQ to REG_OP
+    cpu_exec
+    jump_if_not label:found_difference
+
+    copy var:counter to REG_A
+    write OP_INCR to REG_OP
+    cpu_exec
+    copy REG_RES to var:counter
+
+    jump label:compare_loop
+
+// Handle file end
+label end_of_file_1
+    copy var:file1_size to REG_A
+    copy var:file2_size to REG_B
+    write OP_CMP_LT to REG_OP
+    cpu_exec
+
+    jump_if label:file_1_less
+
+    write "Files are identical." to DISPLAY_BUFFER
+    write COLOR_GREEN to DISPLAY_COLOR
+    write OP_DISPLAY_LN to REG_OP
+    cpu_exec
+
+    jump label:exit
+
+// Handle file end
+label end_of_file_2
+    copy var:file2_size to REG_A
+    copy var:file1_size to REG_B
+    write OP_CMP_LT to REG_OP
+    cpu_exec
+
+    jump_if label:file_2_less
+
+    write "Files are identical." to DISPLAY_BUFFER
+    write COLOR_GREEN to DISPLAY_COLOR
+    write OP_DISPLAY_LN to REG_OP
+    cpu_exec
+
+
+    jump label:exit
+
+label file_1_less
+    write "Files differ at line " to DISPLAY_BUFFER
+    write OP_DISPLAY to REG_OP
+    cpu_exec
+
+    copy var:file1_size to REG_A
+    write OP_INCR to REG_OP
+    cpu_exec
+    copy REG_RES to var:file1_size
+
+    copy var:file1_size to DISPLAY_BUFFER
+    write OP_DISPLAY_LN to REG_OP
+    cpu_exec
+
+    jump label:exit
+
+label file_2_less
+    write "Files differ at line " to DISPLAY_BUFFER
+    write OP_DISPLAY to REG_OP
+    cpu_exec
+
+    copy var:file2_size to REG_A
+    write OP_INCR to REG_OP
+    cpu_exec
+    copy REG_RES to var:file2_size
+
+    copy var:file2_size to DISPLAY_BUFFER
+    write OP_DISPLAY_LN to REG_OP
+    cpu_exec
+
+    jump label:exit
+
+// Handle difference found
+label found_difference
+    write "Files differ at line " to DISPLAY_BUFFER
+    write OP_DISPLAY to REG_OP
+    cpu_exec
+    copy var:counter to DISPLAY_BUFFER
+    write OP_DISPLAY_LN to REG_OP
+    cpu_exec
+
+    jump label:exit
+
+// Handle file not found
+label file_not_found_1
+    write "Error: First file not found." to DISPLAY_BUFFER
+    write COLOR_RED to DISPLAY_COLOR
+    write OP_DISPLAY_LN to REG_OP
+    cpu_exec
+    
+    jump label:exit_without_close
+
+label file_not_found_2
+    write "Error: Second file not found." to DISPLAY_BUFFER
+    write COLOR_RED to DISPLAY_COLOR
+    write OP_DISPLAY_LN to REG_OP
+    cpu_exec
+
+    copy var:file1_desc to REG_A
+    copy PROGRAM_COUNTER to var:sys_return
+    jump label:sys_fs_close
+
+    jump label:exit_without_close
+
+label exit
+    
+    copy var:file1_desc to REG_A
+    copy PROGRAM_COUNTER to var:sys_return
+    jump label:sys_fs_close
+
+    
+    copy var:file2_desc to REG_A
+    copy PROGRAM_COUNTER to var:sys_return
+    jump label:sys_fs_close
+
+    write OP_HALT to REG_OP
+    cpu_exec
+
+label exit_without_close
+    write OP_HALT to REG_OP
+    cpu_exec
